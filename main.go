@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"time"
 
 	"github.com/gocolly/colly"
@@ -17,9 +19,7 @@ type quotes struct {
 
 func main() {
 	items := []quotes{}
-	c := colly.NewCollector(
-		colly.AllowedDomains("brainyquote.com"),
-	)
+	c := colly.NewCollector()
 
 	// Find list of all author and go inside each author page
 	c.OnHTML("#authorColumns > div  a", func(h *colly.HTMLElement) {
@@ -48,11 +48,52 @@ func main() {
 		fmt.Println("Visiting", r.URL.String())
 	})
 
-	c.Visit("https://www.brainyquote.com")
+	c.Visit("https://www.brainyquote.com/")
 
+	writeToJSON(items)
+	writeToCSV(items)
+}
+
+func writeToJSON(quoteData []quotes) {
 	time := time.Now().Unix()
-	fmt.Print(time)
-	file, _ := json.MarshalIndent(items, "", " ")
+	file, _ := json.MarshalIndent(quoteData, "", " ")
 
 	_ = ioutil.WriteFile(fmt.Sprintf("%d.json", time), file, 0644)
+	_ = ioutil.WriteFile("data.json", file, 0644)
+}
+
+func writeToCSV(quoteData []quotes) {
+	jsonDataFromFile, err := ioutil.ReadFile("./data.json")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Unmarshal JSON data
+	err = json.Unmarshal([]byte(jsonDataFromFile), &quoteData)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	csvFile, err := os.Create("./data.csv")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer csvFile.Close()
+
+	writer := csv.NewWriter(csvFile)
+
+	writer.Write([]string{"Quote", "Author", "Source URL"})
+	for _, usance := range quoteData {
+		var row []string
+		row = append(row, usance.Quote)
+		row = append(row, usance.Author)
+		row = append(row, usance.SourceURL)
+		writer.Write(row)
+	}
+
+	// remember to flush!
+	writer.Flush()
 }
